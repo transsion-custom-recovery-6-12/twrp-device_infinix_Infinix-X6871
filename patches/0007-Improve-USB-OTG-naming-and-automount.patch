@@ -1,0 +1,212 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rama Bondan Prakoso <ramanarubp@gmail.com>
+Date: Thu, 26 Nov 2026 15:15:00 +0000
+Subject: [PATCH] Partition: improve USB-OTG naming, ordering and automount
+
+Sysfs wildcard partitions under /usbotg are translated to "Storage"
+("Storage 1", "Storage 2", ...), are ordered arbitrarily by readdir(),
+only refresh on disk add uevents (missing late partition nodes), and do
+not auto-mount partition 1 when plugged in.
+
+- Name /usbotg (/usb_otg, /usb-otg) and its child partitions "USB-Storage"
+  / "USB-Storage <n>" across both Process_Fstab_Line() and
+  Translate_Partition_Display_Names(), and hide the 0MB unmountable
+  parent placeholder from the storage picker once subpartitions exist.
+- Sort wildcard block partitions by numeric partition suffix instead of
+  readdir order and name each child using its actual partition number.
+- Handle block partition add uevents (with bounded node wait) in
+  Handle_Uevent() and auto-mount partition 1 (/usbotg-1, or raw /usbotg
+  without partition table) while leaving additional partitions selectable
+  in the Mount menu.
+---
+diff --git a/partition.cpp b/partition.cpp
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -35,6 +35,7 @@
+ #include <libgen.h>
+ #include <pwd.h>
+ #include <zlib.h>
++#include <algorithm>
+ #include <sstream>
+ #include <android-base/properties.h>
+ #include <libsnapshot/snapshot.h>
+@@ -562,6 +563,10 @@
+ 			Display_Name = "Vendor DLKM";
+ 			Backup_Display_Name = Display_Name;
+ 			Storage_Name = Display_Name;
++		} else if (Mount_Point == "/usbotg" || Mount_Point == "/usb_otg" || Mount_Point == "/usb-otg") {
++			Display_Name = "USB-Storage";
++			Backup_Display_Name = Display_Name;
++			Storage_Name = Display_Name;
+ 		}
+ #ifdef TW_EXTERNAL_STORAGE_PATH
+ 		if (Mount_Point == EXPAND(TW_EXTERNAL_STORAGE_PATH)) {
+@@ -3345,7 +3350,6 @@
+ }
+ 
+ bool TWPartition::Find_Wildcard_Block_Devices(const string& Device) {
+-	int mount_point_index = 0; // we will need to create separate mount points for each partition found and we use this index to name each one
+ 	string Path = TWFunc::Get_Path(Device);
+ 	string Dev = TWFunc::Get_Filename(Device);
+ 	size_t wildcard_index = Dev.find("*");
+@@ -3357,21 +3361,34 @@
+ 		LOGINFO("Error opening '%s': %s\n", Path.c_str(), strerror(errno));
+ 		return false;
+ 	}
++	std::vector<std::pair<unsigned int, string>> devices;
+ 	struct dirent* de;
+ 	while ((de = readdir(d)) != NULL) {
+ 		if (de->d_type != DT_BLK || strlen(de->d_name) <= wildcard_index || strncmp(de->d_name, Dev.c_str(), wildcard_index) != 0)
+ 			continue;
+-
+-		string item = Path + "/";
+-		item.append(de->d_name);
+-		if (PartitionManager.Find_Partition_By_Block_Device(item))
++		const char* suffix = de->d_name + wildcard_index;
++		char* endptr = NULL;
++		unsigned long num = strtoul(suffix, &endptr, 10);
++		if (endptr == suffix || *endptr != '\0' || num == 0)
++			continue;
++		devices.push_back(std::make_pair((unsigned int)num, string(de->d_name)));
++	}
++	closedir(d);
++	std::sort(devices.begin(), devices.end());
++	unsigned int found_count = 0;
++	for (size_t i = 0; i < devices.size(); ++i) {
++		unsigned int part_num = devices[i].first;
++		string item = Path + "/" + devices[i].second;
++		if (PartitionManager.Find_Partition_By_Block_Device(item)) {
++			++found_count;
+ 			continue;
++		}
+ 		TWPartition *part = new TWPartition;
+ 		char buffer[MAX_FSTAB_LINE_LENGTH];
+-		sprintf(buffer, "%s %s-%i auto defaults defaults", item.c_str(), Mount_Point.c_str(), ++mount_point_index);
++		sprintf(buffer, "%s %s-%u auto defaults defaults", item.c_str(), Mount_Point.c_str(), part_num);
+ 		part->Process_Fstab_Line(buffer, false, NULL);
+ 		char display[MAX_FSTAB_LINE_LENGTH];
+-		sprintf(display, "%s %i", Storage_Name.c_str(), mount_point_index);
++		sprintf(display, "%s %u", Storage_Name.c_str(), part_num);
+ 		part->Storage_Name = display;
+ 		part->Display_Name = display;
+ 		part->Primary_Block_Device = item;
+@@ -3388,9 +3405,9 @@
+ 		Has_SubPartition = true;
+ 		PartitionManager.Output_Partition(part);
+ 		PartitionManager.Add_Partition(part);
++		++found_count;
+ 	}
+-	closedir(d);
+-	return (mount_point_index > 0);
++	return (found_count > 0);
+ }
+ 
+ void TWPartition::Find_Actual_Block_Device(void) {
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -2912,7 +2912,7 @@
+       string Current_Storage = DataManager::GetCurrentStoragePath();
+       for (iter = Partitions.begin(); iter != Partitions.end(); iter++)
+ 	{
+-	  if ((*iter)->Is_Storage)
++	  if ((*iter)->Is_Storage && !((*iter)->Has_SubPartition && !(*iter)->Is_Present))
+ 	    {
+ 	      struct PartitionList part;
+ 	      sprintf(free_space, "%llu", (*iter)->Free / 1024 / 1024);
+@@ -3505,7 +3505,23 @@
+ 	std::vector<TWPartition*>::iterator sysfs;
+ 	for (sysfs = Partitions.begin(); sysfs != Partitions.end(); sysfs++) {
+ 		if (!(*sysfs)->Sysfs_Entry.empty()) {
+-			Translate_Partition((*sysfs)->Mount_Point.c_str(), "autostorage", "Storage", "autostorage", "Storage");
++			const string& mp = (*sysfs)->Mount_Point;
++			if (mp == "/usbotg" || mp == "/usb_otg" || mp == "/usb-otg") {
++				Translate_Partition(mp.c_str(), "usb_storage", "USB-Storage", "usb_storage", "USB-Storage");
++			} else {
++				Translate_Partition(mp.c_str(), "autostorage", "Storage", "autostorage", "Storage");
++			}
++			std::vector<TWPartition*>::iterator sub;
++			for (sub = Partitions.begin(); sub != Partitions.end(); sub++) {
++				if ((*sub)->Is_SubPartition && (*sub)->SubPartition_Of == mp) {
++					size_t dash = (*sub)->Mount_Point.find_last_of('-');
++					if (dash != string::npos) {
++						string label = (*sysfs)->Storage_Name + " " + (*sub)->Mount_Point.substr(dash + 1);
++						(*sub)->Display_Name = label;
++						(*sub)->Storage_Name = label;
++					}
++				}
++			}
+ 		}
+ 	}
+ 
+@@ -3765,6 +3781,7 @@
+ }
+ 
+ void TWPartitionManager::Handle_Uevent(const Uevent_Block_Data& uevent_data) {
++	static bool usbotg_automounted = false;
+ 	std::vector<TWPartition*>::iterator iter;
+ 
+ 	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+@@ -3777,22 +3794,45 @@
+ 				device = (*iter)->Sysfs_Entry;
+ 			}
+ 			if (device == uevent_data.sysfs_path.substr(0, device.size())) {
++				const string& mp = (*iter)->Mount_Point;
++				bool is_usbotg = (mp == "/usbotg" || mp == "/usb_otg" || mp == "/usb-otg");
+ 				// Found a match
+ 				if (uevent_data.action == "add") {
+-					(*iter)->Primary_Block_Device = "/dev/block/" + uevent_data.block_device;
+-					(*iter)->Alternate_Block_Device = (*iter)->Primary_Block_Device;
+-					(*iter)->Is_Present = true;
+-					LOGINFO("Found a match '%s' '%s'\n", uevent_data.block_device.c_str(), device.c_str());
+-					if (!Decrypt_Adopted()) {
+-						LOGINFO("No adopted storage so finding actual block device\n");
++					if (uevent_data.type == "disk") {
++						(*iter)->Primary_Block_Device = "/dev/block/" + uevent_data.block_device;
++						(*iter)->Alternate_Block_Device = (*iter)->Primary_Block_Device;
++						(*iter)->Is_Present = true;
++						LOGINFO("Found a match '%s' '%s'\n", uevent_data.block_device.c_str(), device.c_str());
++						if (!Decrypt_Adopted()) {
++							LOGINFO("No adopted storage so finding actual block device\n");
++							(*iter)->Find_Actual_Block_Device();
++						}
++					} else {
++						if ((*iter)->Primary_Block_Device.empty())
++							return;
++						string node = "/dev/block/" + uevent_data.block_device;
++						for (int r = 0; r < 4 && !TWFunc::Path_Exists(node); ++r)
++							usleep(50000);
+ 						(*iter)->Find_Actual_Block_Device();
+ 					}
++					if (!usbotg_automounted && is_usbotg) {
++						TWPartition* target = Find_Partition_By_Path(mp + "-1");
++						if (!target && (*iter)->Can_Be_Mounted && (*iter)->Is_Present && !(*iter)->Has_SubPartition)
++							target = *iter;
++						if (target && (target->Is_Mounted() || target->Mount(false))) {
++							usbotg_automounted = true;
++							LOGINFO("Auto-mounted USB-OTG '%s'\n", target->Mount_Point.c_str());
++						}
++					}
+ 					return;
+-				} else if (uevent_data.action == "remove") {
++				} else if (uevent_data.action == "remove" && uevent_data.type == "disk") {
+ 					(*iter)->Is_Present = false;
+ 					(*iter)->Primary_Block_Device = "";
+ 					(*iter)->Actual_Block_Device = "";
+-					Remove_Uevent_Devices((*iter)->Mount_Point);
++					(*iter)->Has_SubPartition = false;
++					Remove_Uevent_Devices(mp);
++					if (is_usbotg)
++						usbotg_automounted = false;
+ 					return;
+ 				}
+ 			}
+@@ -3882,7 +3922,7 @@
+ 		i += strlen(buf+i)+1;
+ 	}*/
+ 	Uevent_Block_Data uevent_data = get_event_block_values(buf, len);
+-	if (uevent_data.subsystem == "block" && uevent_data.type == "disk") {
++	if (uevent_data.subsystem == "block" && (uevent_data.type == "disk" || (uevent_data.type == "partition" && uevent_data.action == "add"))) {
+ 		PartitionManager.Handle_Uevent(uevent_data);
+ 	}
+ }
