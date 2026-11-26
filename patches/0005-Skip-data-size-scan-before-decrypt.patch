@@ -1,0 +1,127 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rama Bondan Prakoso <ramanarubp@gmail.com>
+Date: Thu, 26 Nov 2026 09:05:00 +0000
+Subject: [PATCH] Defer /data Get_Folder_Size during startup and decrypt (OrangeFox)
+
+Setup_Fstab_Partitions() and Post_Decrypt() both call
+Update_System_Details(), triggering a synchronous ~20s recursive walk of
+/data via Get_Folder_Size() even though statfs() already provides Used,
+Free and Backup_Size for startup/UI and Run_Backup()/refreshsizes still
+recompute exact backup sizes on demand.
+
+Add Defer_Data_Size / Defer_Folder_Size (default false) so startup and
+Post_Decrypt() keep the fast statfs() numbers, guard against scanning
+while encrypted before twrp.decrypt.done, and replace the fixed sleep(1)
+in Post_Decrypt() with a short mount-retry loop matching TWRP 16.0.
+---
+diff --git a/partition.cpp b/partition.cpp
+index 1914cf4..90992c8 100644
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -3257,7 +3257,7 @@ bool TWPartition::Restore_Image(PartitionSettings *part_settings) {
+ 	return true;
+ }
+ 
+-bool TWPartition::Update_Size(bool Display_Error) {
++bool TWPartition::Update_Size(bool Display_Error, bool Defer_Folder_Size) {
+ 	bool ret = false, Was_Already_Mounted = false, ro = false;
+ 	
+ 
+@@ -3297,11 +3297,15 @@ bool TWPartition::Update_Size(bool Display_Error) {
+ 
+ 	if (Has_Data_Media) {
+ 		if (Mount(Display_Error)) {
+-			Used = backup_exclusions.Get_Folder_Size(Mount_Point);
+-			Backup_Size = Used;
+-			int bak = (int)(Used / 1048576LLU);
+-			int fre = (int)(Free / 1048576LLU);
+-			LOGINFO("Data backup size is %iMB, free: %iMB.\n", bak, fre);
++			if (!Defer_Folder_Size
++			&& (TWFunc::Fox_Property_Get("twrp.decrypt.done") == "true"
++			|| !PartitionManager.Storage_Is_Encrypted())) {
++				Used = backup_exclusions.Get_Folder_Size(Mount_Point);
++				Backup_Size = Used;
++				int bak = (int)(Used / 1048576LLU);
++				int fre = (int)(Free / 1048576LLU);
++				LOGINFO("Data backup size is %iMB, free: %iMB.\n", bak, fre);
++			}
+ 		} else {
+ 			if (!Was_Already_Mounted)
+ 				UnMount(false);
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index b6d2a86..80d89a5 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -634,7 +634,7 @@ void TWPartitionManager::Setup_Fstab_Partitions(bool Display_Error) {
+ 		Decrypt_Data();
+ 	#endif
+ 
+-		Update_System_Details();
++		Update_System_Details(true);
+ 		if (Get_Super_Status())
+ 			Setup_Super_Partition();
+ 		UnMount_Main_Partitions();
+@@ -2082,7 +2082,7 @@ int TWPartitionManager::Resize_By_Path(string Path, bool Display_Error) {
+ 	return false;
+ }
+ 
+-void TWPartitionManager::Update_System_Details(void) {
++void TWPartitionManager::Update_System_Details(bool Defer_Data_Size) {
+ 	std::vector<TWPartition*>::iterator iter;
+ 	int data_size = 0;
+   	#ifdef OF_REPORT_HARMLESS_MOUNT_ISSUES
+@@ -2094,7 +2094,8 @@ void TWPartitionManager::Update_System_Details(void) {
+   	if (DataManager::GetIntValue(FOX_RUN_SURVIVAL_BACKUP) != 1)
+ 		gui_msg("update_part_details=Updating partition details...");
+ 	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+-		(*iter)->Update_Size(reporter);
++		bool defer = Defer_Data_Size && (*iter)->Has_Data_Media && (*iter)->Mount_Point == "/data";
++		(*iter)->Update_Size(reporter, defer);
+ 		if ((*iter)->Can_Be_Mounted) {
+ 			if ((*iter)->Mount_Point == Get_Android_Root_Path()) {
+ 				int backup_display_size = (int)((*iter)->Backup_Size / 1048576LLU);
+@@ -2207,10 +2208,11 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
+ 		dat->Setup_File_System(false);
+ 		dat->Current_File_System = dat->Fstab_File_System;  // Needed if we're ignoring blkid because encrypted devices start out as emmc
+ 
+-		sleep(1); // Sleep for a bit so that the device will be ready
+-
+ 		// Mount only /data
+ 		dat->Symlink_Path = ""; // Not to let it to bind mount /data/media again
++		int retry_count = 20;
++		while (!dat->Mount(false) && --retry_count)
++			usleep(50000);
+ 		if (!dat->Mount(false)) {
+ 			LOGERR("Unable to mount /data after decryption");
+ 		}
+@@ -2230,7 +2232,7 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
+ 		DataManager::SetValue("tw_settings_path", Fox_Home);
+ 		LOGINFO("New storage path after decryption: %s\n", dat->Storage_Path.c_str());
+ 
+-		Update_System_Details();
++		Update_System_Details(true);
+ 		Output_Partition(dat);
+ 		if (!android::base::StartsWith(dat->Actual_Block_Device, "/dev/block/mmcblk")) {
+ 		if (!dat->Bind_Mount(false))
+diff --git a/partitions.hpp b/partitions.hpp
+index ea1f80b..8000f84 100644
+--- a/partitions.hpp
++++ b/partitions.hpp
+@@ -164,7 +164,7 @@ public:
+ 	bool Decrypt(string Password);                                            // Decrypts the partition, return 0 for failure and -1 for success
+ 	bool Wipe_Encryption();                                                   // Ignores wipe commands for /data/media devices and formats the original block device
+ 	void Check_FS_Type();                                                     // Checks the fs type using blkid, does not do anything on MTD / yaffs2 because this crashes on some devices
+-	bool Update_Size(bool Display_Error);                                     // Updates size information
++	bool Update_Size(bool Display_Error, bool Defer_Folder_Size = false);   // Updates size information
+ 	void Recreate_Media_Folder();                                             // Recreates the /data/media folder
+ 
+ 	bool Flash_Image(PartitionSettings *part_settings);                       // Flashes an image to the partition
+@@ -388,7 +388,7 @@ public:
+ 	int Wipe_Media_From_Data();                                               // Removes and recreates the media folder on /data/media devices
+ 	int Repair_By_Path(string Path, bool Display_Error);                      // Repairs a partition based on path
+ 	int Resize_By_Path(string Path, bool Display_Error);                      // Resizes a partition based on path
+-	void Update_System_Details();                                             // Updates fstab, file systems, sizes, etc.
++	void Update_System_Details(bool Defer_Data_Size = false);                  // Updates fstab, file systems, sizes, etc.
+ 	void Update_System_Details_OTA_Survival();                                // Updates fstab, file systems, sizes, etc.
+ 	int Decrypt_Device(string Password, int user_id = 0);                     // Attempt to decrypt any encrypted partitions
+ 	void Parse_Users();                                                       // Parse FBE users

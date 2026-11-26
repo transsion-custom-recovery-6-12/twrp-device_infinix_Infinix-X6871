@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rama Bondan Prakoso <ramanarubp@gmail.com>
+Date: Thu, 26 Nov 2026 05:30:00 +0000
+Subject: [PATCH] Set twrp.storage.ready after fstab processing (OrangeFox)
+
+OrangeFox does not set twrp.storage.ready, so init never starts mobicore,
+tee-service, gatekeeper and KeyMint on X6871. keystore2 then never registers
+and the recovery blocks forever during decryption at the logo.
+
+Decryption runs inside Setup_Fstab_Partitions(), so set the property right
+after Process_Fstab() succeeds instead of after Setup_Fstab_Partitions().
+---
+diff --git a/twrp.cpp b/twrp.cpp
+index 498ea9e..c0a5717 100644
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -541,6 +541,11 @@ int main(int argc, char **argv) {
+ 		return -1;
+ 	}
+ 
++	// Fstab processing and its temporary mount cleanup are done. Setting this
++	// before Setup_Fstab_Partitions(), which blocks in decryption, lets init
++	// start the Trustonic stack (see init.tee.rc and init.recovery.mt6895.rc).
++	property_set("twrp.storage.ready", "1");
++
+ 	// Set the props for OrangeFox dynamic partitions
+ 	//PartitionManager.Fox_Set_Dynamic_Partition_Props();
+ 

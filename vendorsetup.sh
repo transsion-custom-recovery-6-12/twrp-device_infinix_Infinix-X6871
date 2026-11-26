@@ -69,12 +69,40 @@ setup_X6871() {
 	fetch_mt6895_common_repo "$root" || return 1
 
 	# Patches
-	apply_X6871_patch "$root/bootable/recovery" \
-		"$root/device/infinix/Infinix-X6871/patches/0001-Change-haptics-activation-file-path.patch" || return 1
-	apply_X6871_patch "$root/bootable/recovery" \
-		"$root/device/transsion/mt6895-common/patches/0003-Fallback-to-unfiltered-DRM-plane-selection.patch" || return 1
-	apply_X6871_patch "$root/bootable/recovery" \
-		"$root/device/transsion/mt6895-common/patches/0002-Respect-disabled-repacking.patch" || return 1
+	if [ -f "$root/bootable/recovery/twrpminui/haptics.cpp" ]; then
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/infinix/Infinix-X6871/patches/0001-Change-haptics-activation-file-path.patch" || return 1
+	elif [ -f "$root/bootable/recovery/minuitwrp/events.cpp" ]; then
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/infinix/Infinix-X6871/patches/0001-Change-haptics-activation-file-path-minuitwrp.patch" || return 1
+	else
+		echo "ERROR: Neither twrpminui/haptics.cpp nor minuitwrp/events.cpp found in $root/bootable/recovery." >&2
+		return 1
+	fi
+
+	if [ -f "$root/bootable/recovery/twrpminui/graphics_drm.cpp" ]; then
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/transsion/mt6895-common/patches/0003-Fallback-to-unfiltered-DRM-plane-selection.patch" || return 1
+	else
+		echo "Skipping 0003-Fallback-to-unfiltered-DRM-plane-selection.patch (no twrpminui/graphics_drm.cpp)"
+	fi
+
+	if grep -q 'twrpGlobalVars' "$root/bootable/recovery/Android.bp" 2>/dev/null; then
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/transsion/mt6895-common/patches/0002-Respect-disabled-repacking.patch" || return 1
+	else
+		echo "Skipping 0002-Respect-disabled-repacking.patch (no twrpGlobalVars in Android.bp)"
+	fi
+
+	if [ -f "$root/bootable/recovery/orangefox.mk" ]; then
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/infinix/Infinix-X6871/patches/0004-Set-twrp-storage-ready-for-OrangeFox.patch" || return 1
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/infinix/Infinix-X6871/patches/0005-Skip-data-size-scan-before-decrypt.patch" || return 1
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/infinix/Infinix-X6871/patches/0006-Use-Dark-style-as-default-theme.patch" || return 1
+	fi
+
 	apply_X6871_patch "$root/build/make" \
 		"$root/device/transsion/mt6895-common/patches/0001-Add-zstd-ramdisk-compression.patch" || return 1
 
