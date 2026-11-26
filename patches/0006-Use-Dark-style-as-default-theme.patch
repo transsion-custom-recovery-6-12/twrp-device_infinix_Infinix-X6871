@@ -1,0 +1,21 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rama Bondan Prakoso <ramanarubp@gmail.com>
+Date: Thu, 26 Nov 2026 09:24:00 +0000
+Subject: [PATCH] Theme: use Dark style as default (OrangeFox)
+
+Default OrangeFox portrait_hdpi to the Dark brand style instead of
+Cream when no custom user style exists under fox_theme_path.
+---
+diff --git a/gui/theme/portrait_hdpi/ui.xml b/gui/theme/portrait_hdpi/ui.xml
+index 9108c17..2acfd69 100644
+--- a/gui/theme/portrait_hdpi/ui.xml
++++ b/gui/theme/portrait_hdpi/ui.xml
+@@ -10,7 +10,7 @@
+ 
+ 		<xml name="%fox_navbar_path%/navbar.xml" default="/twres/themes/navbar.xml"/>
+ 		<xml name="%fox_theme_path%/font.xml"    default="/twres/themes/font.xml"/>
+-		<xml name="%fox_theme_path%/style.xml"   default="/twres/themes/style.xml"/>
++		<xml name="%fox_theme_path%/style.xml"   default="/twres/themes/styles/Dark.xml"/>
+ 		<xml name="%fox_theme_path%/accent.xml"  default="/twres/themes/accent.xml"/>
+ 
+ 		<xml name="/twres/resources/vars.xml"/>
