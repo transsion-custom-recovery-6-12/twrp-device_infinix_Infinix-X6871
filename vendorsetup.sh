@@ -77,6 +77,30 @@ setup_X6871() {
 		"$root/device/transsion/mt6895-common/patches/0002-Respect-disabled-repacking.patch" || return 1
 	apply_X6871_patch "$root/build/make" \
 		"$root/device/transsion/mt6895-common/patches/0001-Add-zstd-ramdisk-compression.patch" || return 1
+
+	# OrangeFox build configuration (only when building OrangeFox)
+	if [ -f "$root/bootable/recovery/orangefox.mk" ]; then
+		export FOX_VIRTUAL_AB_DEVICE=1
+		export FOX_VENDOR_BOOT_RECOVERY=1
+		export FOX_DISABLE_UPDATEZIP=1
+		export FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=0
+		export FOX_VARIANT="k6.18"
+		export FOX_NO_BLANK_DT2W=1
+		export OF_MAINTAINER="rama982"
+		export OF_USE_GREEN_LED=0
+		export FOX_ENABLE_APP_MANAGER=1
+		export FOX_ENABLE_KERNELSU_SUPPORT=1
+		export FOX_DELETE_AROMAFM=1
+		export FOX_USE_BASH_SHELL=1
+		export FOX_ASH_IS_BASH=1
+		export FOX_USE_NANO_EDITOR=1
+		export FOX_USE_TAR_BINARY=1
+		export FOX_USE_LZ4_BINARY=1
+		export FOX_USE_ZSTD_BINARY=1
+		export FOX_USE_SED_BINARY=1
+		export FOX_USE_XZ_UTILS=1
+	fi
+
 	echo "OK: All patched"
 }
 
