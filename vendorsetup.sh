@@ -101,6 +101,8 @@ setup_X6871() {
 			"$root/device/infinix/Infinix-X6871/patches/0005-Skip-data-size-scan-before-decrypt.patch" || return 1
 		apply_X6871_patch "$root/bootable/recovery" \
 			"$root/device/infinix/Infinix-X6871/patches/0006-Use-Dark-style-as-default-theme.patch" || return 1
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/infinix/Infinix-X6871/patches/0007-Improve-USB-OTG-naming-and-automount.patch" || return 1
 	fi
 
 	apply_X6871_patch "$root/build/make" \
