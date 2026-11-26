@@ -1,0 +1,142 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rama Bondan Prakoso <ramanarubp@gmail.com>
+Date: Thu, 26 Nov 2026 16:38:00 +0000
+Subject: [PATCH] Partition: sync /usb_otg symlink for mounted USB-OTG
+
+OrangeFox's File Manager and Install path menus (files_qa_base and
+files_sp_base) check fileexists on /usb_otg, whereas devices with a
+wildcard /usbotg fstab entry mount partition 1 at /usbotg-1 (or /usbotg).
+
+Maintain a dynamic /usb_otg symlink pointing to the lowest-numbered
+mounted /usbotg* partition (removing it and returning the File Manager
+to /sdcard on unmount or detach) so USB-Storage appears in path menus
+only when USB-OTG is mounted.
+---
+diff --git a/partition.cpp b/partition.cpp
+index 1defd42..8a70925 100644
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -1796,6 +1796,9 @@ exit:
+ 		if (!Bind_Mount(false))
+ 			return false;
+ 	}
++	if (Mount_Point == "/usbotg" || Mount_Point == "/usb-otg" ||
++		SubPartition_Of == "/usbotg" || SubPartition_Of == "/usb-otg")
++		PartitionManager.Update_UsbOtg_Symlink();
+ 	return true;
+ }
+ 
+@@ -1837,6 +1840,9 @@ bool TWPartition::UnMount(bool Display_Error, int flags) {
+ 				LOGINFO("Unable to unmount '%s'\n", Mount_Point.c_str());
+ 			return false;
+ 		} else {
++			if (Mount_Point == "/usbotg" || Mount_Point == "/usb-otg" ||
++				SubPartition_Of == "/usbotg" || SubPartition_Of == "/usb-otg")
++				PartitionManager.Update_UsbOtg_Symlink();
+ 			return true;
+ 		}
+ 	} else {
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index 4cd5410..49b9674 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -3770,11 +3770,13 @@ void TWPartitionManager::Remove_Uevent_Devices(const string& Mount_Point) {
+ 		if ((*iter)->Is_SubPartition && (*iter)->SubPartition_Of == Mount_Point) {
+ 			TWPartition *part = *iter;
+ 			LOGINFO("%s was removed by uevent data\n", (*iter)->Mount_Point.c_str());
+-			(*iter)->UnMount(false);
++			(*iter)->UnMount(false, MNT_DETACH);
+ 			rmdir((*iter)->Mount_Point.c_str());
+ 			iter = Partitions.erase(iter);
+ 			delete part;
+ 		} else {
++			if ((*iter)->Mount_Point == Mount_Point && (*iter)->Is_Mounted())
++				(*iter)->UnMount(false, MNT_DETACH);
+ 			iter++;
+ 		}
+ 	}
+@@ -5001,6 +5003,72 @@ unmount:
+ 	TWFunc::Toggle_MTP(mtp_was_enabled);
+ }
+ 
++void TWPartitionManager::Update_UsbOtg_Symlink() {
++	static const char* kUsbOtgLink = "/usb_otg";
++	if (Find_Partition_By_Path(kUsbOtgLink) != NULL)
++		return;
++
++	string target;
++	unsigned long best_part_num = 0;
++	for (std::vector<TWPartition*>::iterator iter = Partitions.begin(); iter != Partitions.end(); ++iter) {
++		TWPartition* part = *iter;
++		if (!part || !part->Is_Mounted())
++			continue;
++		const string& mp = part->Mount_Point;
++		if (part->Is_SubPartition && (part->SubPartition_Of == "/usbotg" || part->SubPartition_Of == "/usb-otg")) {
++			size_t dash = mp.find_last_of('-');
++			unsigned long num = 0;
++			if (dash != string::npos)
++				num = strtoul(mp.c_str() + dash + 1, NULL, 10);
++			if (target.empty() || (num > 0 && (best_part_num == 0 || num < best_part_num))) {
++				target = mp;
++				best_part_num = num;
++			}
++		} else if ((mp == "/usbotg" || mp == "/usb-otg") && target.empty()) {
++			target = mp;
++		}
++	}
++
++	struct stat st;
++	bool link_exists = (lstat(kUsbOtgLink, &st) == 0);
++	if (link_exists && !S_ISLNK(st.st_mode))
++		return;
++
++	if (target.empty()) {
++		if (!link_exists)
++			return;
++		unlink(kUsbOtgLink);
++		LOGINFO("Removed '%s' symlink\n", kUsbOtgLink);
++		string loc = DataManager::GetStrValue("tw_file_location1");
++		if (loc == kUsbOtgLink || loc.compare(0, 9, "/usb_otg/") == 0) {
++			DataManager::SetValue("tw_file_location1", "/sdcard");
++			if (PageManager::GetCurrentPage() == "filemanagerlist")
++				gui_changePage("filemanagerlist");
++		}
++		return;
++	}
++
++	if (link_exists) {
++		char buf[256];
++		ssize_t len = readlink(kUsbOtgLink, buf, sizeof(buf) - 1);
++		if (len > 0) {
++			buf[len] = '\0';
++			if (target == buf)
++				return;
++		}
++		unlink(kUsbOtgLink);
++	}
++
++	if (symlink(target.c_str(), kUsbOtgLink) == 0) {
++		LOGINFO("Linked '%s' -> '%s'\n", kUsbOtgLink, target.c_str());
++		if (PageManager::GetCurrentPage() == "filemanagerlist" &&
++		    DataManager::GetStrValue("tw_file_location1") == kUsbOtgLink)
++			gui_changePage("filemanagerlist");
++	} else {
++		LOGINFO("Failed to link '%s' -> '%s': %s\n", kUsbOtgLink, target.c_str(), strerror(errno));
++	}
++}
++
+ std::pair<string, string> TWPartitionManager::Get_Partition_Checksums(TWPartition* twrpPart) {
+ 	std::pair<string, string> res;
+ 	string command = "/system/bin/sha256sum -b " + twrpPart->Primary_Block_Device;
+diff --git a/partitions.hpp b/partitions.hpp
+index 8000f84..bc10e99 100644
+--- a/partitions.hpp
++++ b/partitions.hpp
+@@ -446,6 +446,7 @@ public:
+ 	bool Check_Pending_Merges();                                              // Check and run pending merges on data for VAB devices
+ 	bool Disable_AVB2(bool Display_Info);                                     // Disable AVB2.0 in vbmeta/vbmeta_system
+ 	void Check_UsbOtg_Status();						  // Checks if usb_otg is connected
++	void Update_UsbOtg_Symlink();						  // Syncs /usb_otg symlink to mounted /usbotg partition
+ 	std::pair<string, string> Get_Partition_Checksums(TWPartition* twrpPart); // Generates and returns the SHA-256 checksum for the specified partition
+ 	bool Mount_Super_Toggle(const string& arg, bool user_toggle = false);	  // Changes Mount_Read_Only flag for all dynamic partitions
+ 
