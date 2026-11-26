@@ -1,0 +1,6 @@
+# Kernel 6.18 checks system:firmware_load when request_firmware() runs in the
+# kernel domain; keep kernel permissive in recovery so Goodix touch and
+# RichTap haptic firmware loads succeed without patching /sepolicy post-build.
+recovery_only(`
+  permissive kernel;
+')
