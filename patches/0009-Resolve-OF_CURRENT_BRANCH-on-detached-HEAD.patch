@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rama Bondan Prakoso <ramanarubp@gmail.com>
+Date: Fri, 27 Nov 2026 00:39:00 +0000
+Subject: [PATCH] orangefox.mk: resolve OF_CURRENT_BRANCH on detached HEAD
+
+repo sync checks out bootable/recovery on a detached HEAD, making
+git branch --show-current return empty and OF_CURRENT_BRANCH fall back
+to "(no branch)". Fall back to the matching remote tracking branch name
+at HEAD before defaulting to "(no branch)".
+---
+diff --git a/orangefox.mk b/orangefox.mk
+index a53d55d..527de44 100644
+--- a/orangefox.mk
++++ b/orangefox.mk
+@@ -62,6 +62,9 @@ ifeq ($(FOX_DEVICE_MODEL),)
+ endif
+ 
+ OF_CURRENT_BRANCH := $(shell git -C $(call my-dir) branch --show-current 2>/dev/null)
++ifeq ($(OF_CURRENT_BRANCH),)
++    OF_CURRENT_BRANCH := $(shell git -C $(call my-dir) for-each-ref --points-at=HEAD --format='%(refname:lstrip=3)' refs/remotes/ 2>/dev/null | grep -vx HEAD | head -n 1)
++endif
+ ifeq ($(OF_CURRENT_BRANCH),)
+     LOCAL_CFLAGS += -DOF_CURRENT_BRANCH='"(no branch)"'
+ else
