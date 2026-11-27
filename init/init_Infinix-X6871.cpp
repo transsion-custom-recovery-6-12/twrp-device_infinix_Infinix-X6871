@@ -24,4 +24,5 @@ void vendor_load_properties()
         property_override(string("ro.product.") + prop + string("marketname"), "Infinix GT 20 Pro");
         property_override(string("ro.product.") + prop + string("device"), "Infinix-X6871");
     }
+    property_override("ro.orangefox.device_model", "Infinix GT 20 Pro");
 }
