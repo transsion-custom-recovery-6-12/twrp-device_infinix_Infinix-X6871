@@ -83,7 +83,6 @@ alias symbol:mtk_mmdebug_status_dump_register_notifier mtk_mmdebug_vcp_stub
 alias symbol:drm_hdmi_avi_infoframe_content_type drm_display_helper
 alias symbol:mtk_smi_check_larb_ref_cnt mtk_smi
 alias symbol:mt_pwm_clk_sel_hal mtk_pwm
-alias symbol:mtk_smmu_ela_enabled iommu_debug
 alias symbol:charger_dev_get_vac1_status tc_charger_class
 alias symbol:register_scpsys_notifier mtk_scpsys
 alias symbol:aee_rr_rec_ptp_gpu_volt_3 mrdump
@@ -368,7 +367,6 @@ alias symbol:xhci_sideband_get_event_buffer_ xhci_mtk_hcd_v2
 alias symbol:soter_driver_init isee
 alias symbol:tcpc_class tcpc_class
 alias symbol:drm_dp_send_query_stream_enc_status drm_display_helper
-alias symbol:mtk_smmu_set_ops mtk_iommu_util
 alias symbol:mtkfb_set_force_partial_roi mediatek_drm_v1
 alias symbol:charger_dev_enable_usbid_floating tc_charger_class
 alias symbol:drm_dp_downstream_debug drm_display_helper
@@ -377,7 +375,6 @@ alias symbol:mml_max_layer mtk_mml
 alias symbol:mtk_hwv_dfs_mux_fenc_ops clk_common
 alias symbol:slbc_read_invalidate mtk_slbc
 alias symbol:drm_dp_lttpr_link_train_clock_recovery_delay drm_display_helper
-alias symbol:mtk_smmu_iova_to_iopte iommu_debug
 alias symbol:cmdq_task_current_offset mtk_cmdq_drv_ext
 alias symbol:cmdq_util_hw_trace_mode_update mtk_cmdq_drv_ext
 alias symbol:mtk_smi_common_ostdl_set mtk_smi
@@ -437,7 +434,6 @@ alias symbol:unregister_tchg_alg_notifier tc_algorithm_class
 alias symbol:drm_dp_dpcd_write drm_display_helper
 alias symbol:spmi_slvid_nack_cnt_add spmi_mtk_pmif
 alias symbol:ssusb_power_unregister_notifier mtu3
-alias symbol:report_custom_smmu_fault iommu_debug
 alias symbol:cmdq_util_prebuilt_dump_cpr mtk_cmdq_drv_ext
 alias symbol:osal_get_filp_struct sec
 alias symbol:ufs_mb_get_info ufs_mediatek_mod
@@ -463,7 +459,6 @@ alias symbol:drm_dp_add_payload_part2 drm_display_helper
 alias symbol:tc_get_battery_cycle tc_misc_intf
 alias symbol:tcpm_set_pd_local_source_cap tcpc_class
 alias symbol:charger_dev_set_pfm_mode tc_charger_class
-alias symbol:mtk_smmu_pgtable_dump iommu_debug
 alias symbol:slbc_invalidate mtk_slbc
 alias symbol:mtk_dump_bwr mtk_mm_monitor_controller
 alias symbol:tadapter_dev_exit_protocol tc_adapter_class
@@ -525,7 +520,6 @@ alias symbol:tcpci_source_vbus tcpc_class
 alias symbol:register_fdrv isee
 alias symbol:tcpci_get_power_status tcpc_class
 alias symbol:cqhci_deactivate cqhci
-alias symbol:mtk_smmu_set_debug_ops iommu_debug
 alias symbol:cmdq_util_enable_disp_va mtk_cmdq_drv_ext
 alias symbol:drm_dp_downstream_420_passthrough drm_display_helper
 alias symbol:tcpm_update_bat_status_soc tcpc_class
@@ -570,7 +564,6 @@ alias symbol:drm_dp_128b132b_lane_channel_eq_done drm_display_helper
 alias symbol:mtk_is_virt_gpio pinctrl_mtk_v2
 alias symbol:mtk_clk_gate_ops_hwv clk_common
 alias symbol:tadapter_dev_set_wdt tc_adapter_class
-alias symbol:mtk_smmu_rpm_put mtk_iommu_util
 alias symbol:osal_rid_unlock sec
 alias symbol:mtk_clk_simple_probe clk_common
 alias symbol:slbc_unregister_common_ops mtk_slbc
@@ -696,7 +689,6 @@ alias symbol:mm_qos_add_request mmqos_wrapper
 alias symbol:tcpci_notify_alert tcpc_class
 alias symbol:mmmc_smi_mon_comm1 mtk_mm_monitor_controller
 alias symbol:TEEC_RegisterSharedMemory isee
-alias symbol:mtk_smmu_ela_init iommu_debug
 alias symbol:drm_dp_link_train_clock_recovery_delay drm_display_helper
 alias symbol:mtk_smem_init mtk_mbox
 alias symbol:charger_dev_enable_chip tc_charger_class
@@ -800,7 +792,6 @@ alias symbol:cmdq_dump_thrd_irq_history mtk_cmdq_drv_ext
 alias symbol:mtk_iova_free iommu_debug
 alias symbol:pd_dbg_info pd_dbg_info
 alias symbol:mtk_clk_gate_ops_setclr_inv clk_common
-alias symbol:mtk_smmu_pgtable_ops_dump iommu_debug
 alias symbol:tcpm_dpm_bk_event_cb tcpc_class
 alias symbol:charger_dev_get_ibat tc_charger_class
 alias symbol:mtk_pinconf_drive_set_rev1 pinctrl_mtk_v2
@@ -826,7 +817,6 @@ alias symbol:mtk_dmabuf_page_pool_add system_heap
 alias symbol:drm_dp_mst_connector_early_unregister drm_display_helper
 alias symbol:mtk_uart_apdma_polling_rx_finish mtk_uart_apdma
 alias symbol:rt6160_get_error_cnt rt6160_regulator
-alias symbol:mtk_smmu_get_port_tf_ids iommu_debug
 alias symbol:mtk_iova_unmap iommu_debug
 alias symbol:register_spmi_md_force_assert spmi_mtk_pmif
 alias symbol:rt_regmap_update_bits tcpc_class
@@ -861,7 +851,6 @@ alias symbol:g_gpuc_direct_push mediatek_drm_v1
 alias symbol:tcpci_alert_vendor_defined_handler tcpc_class
 alias symbol:cmdq_pkt_alloc_buf mtk_cmdq_drv_ext
 alias symbol:slbc_trace_init slbc_trace
-alias symbol:mtk_smmu_unregister_tbu mtk_iommu_util
 alias symbol:drm_dp_read_sink_count_cap drm_display_helper
 alias symbol:tcpm_inquire_cc_high tcpc_class
 alias symbol:tran_led_device_register tran_led_core
@@ -1407,7 +1396,6 @@ alias symbol:get_virtual_port mmqos_wrapper
 alias symbol:drm_dp_lttpr_voltage_swing_level_3_supported drm_display_helper
 alias symbol:tc_ta_device_get_fwcode tc_ta_class
 alias symbol:drm_unregister_fps_chg_callback mediatek_drm_v1
-alias symbol:mtk_smmu_enable_ela iommu_debug
 alias symbol:ftrace_user_opp_v3_vcore mtk_mmdvfs_ftrace
 alias symbol:tcpc_typec_handle_ctd tcpc_class
 alias symbol:unset_clkdbg_ops clk_common
@@ -1540,7 +1528,6 @@ alias symbol:tadapter_dev_get_status tc_adapter_class
 alias symbol:tc_get_tusb_temp tc_misc_intf
 alias symbol:tc_ta_device_set_voltage tc_ta_class
 alias symbol:tnek_get_node_from_list tnek
-alias symbol:mtk_smmu_register_tbu mtk_iommu_util
 alias symbol:charger_dev_pd_set_hiz_flag tc_charger_class
 alias symbol:mtk_pinconf_drive_get pinctrl_mtk_v2
 alias symbol:tcpci_get_pdphy_pid tcpc_class
@@ -1584,7 +1571,6 @@ alias symbol:xhci_stop_endpoint_sync_ xhci_mtk_hcd_v2
 alias symbol:tcpm_dpm_pd_get_pps_status tcpc_class
 alias symbol:mt_printk_ctrl_early_init mtk_printk_ctrl
 alias symbol:mtk_clk_mux_register_user_clks clk_common
-alias symbol:mtk_smmu_disable_ela iommu_debug
 alias symbol:osal_set_kernel_fs sec
 alias symbol:mml_drm_submit_timeout mtk_mml
 alias symbol:mtk_clk_gate_ops_hwv_dummy clk_common
@@ -1606,7 +1592,6 @@ alias symbol:cmdq_hw_trace mtk_cmdq_drv_ext
 alias symbol:mtk_eint_do_resume pinctrl_mtk_v2
 alias symbol:cmdq_pkt_get_curr_buf_va mtk_cmdq_drv_ext
 alias symbol:mtk_smi_larb_disable mtk_smi
-alias symbol:mtk_smmu_ela_dump iommu_debug
 alias symbol:cmdq_set_alldump mtk_cmdq_drv_ext
 alias symbol:mtk_dmabuf_page_pool_destroy system_heap
 alias symbol:tcpci_sink_vbus tcpc_class
@@ -1674,7 +1659,6 @@ alias symbol:mt_get_subsys_freq clk_common
 alias symbol:mtk_disp_notifier_call_chain mtk_disp_notify
 alias symbol:pdchk_get_bug_on_stat clk_common
 alias symbol:tc_pd_type_tostring tc_tcpc
-alias symbol:mtk_smmu_ste_cd_dump iommu_debug
 alias symbol:cmdq_register_device mtk_cmdq_drv_ext
 alias symbol:drm_dp_read_channel_eq_delay drm_display_helper
 alias symbol:mmmc_smi_mon_comm0 mtk_mm_monitor_controller
@@ -1851,7 +1835,6 @@ alias symbol:mtk_iova_map_dump iommu_debug
 alias symbol:mtk_uart_apdma_data_dump mtk_uart_apdma
 alias symbol:tc_get_accurate_tpcb_temp tc_misc_intf
 alias symbol:drm_dp_check_act_status drm_display_helper
-alias symbol:mtk_smmu_rpm_get mtk_iommu_util
 alias symbol:drm_dp_read_mst_cap drm_display_helper
 alias symbol:rpmb_mtk_dev_unregister rpmb
 alias symbol:rpmb_mtk_get_rw_size rpmb
@@ -1926,7 +1909,6 @@ alias symbol:mtk_mbox_read_hd mtk_mbox
 alias symbol:tadapter_dev_authentication tc_adapter_class
 alias symbol:mtk_uart_get_apdma_rx_state mtk_uart_apdma
 alias symbol:drm_dp_read_lttpr_phy_caps drm_display_helper
-alias symbol:mtk_smmu_ste_cd_info_dump iommu_debug
 alias symbol:xhci_free_interrupter_ xhci_mtk_hcd_v2
 alias symbol:rt_regmap_add_debugfs tcpc_class
 alias symbol:tlc_get_debug_level tran_led_core
@@ -2354,7 +2336,6 @@ alias symbol:drm_dp_send_real_edid_checksum drm_display_helper
 alias symbol:mtk_spmi_pmic_get_pre_ot_cnt mtk_spmi_pmic_debug
 alias symbol:tc_ta_device_get_datecode tc_ta_class
 alias symbol:drm_connector_hdmi_audio_init drm_display_helper
-alias symbol:mtk_smmu_wpreg_dump iommu_debug
 alias symbol:drm_dp_vsc_sdp_pack drm_display_helper
 alias symbol:mmdvfs_get_mmup_base mtk_mmdvfs_v3
 alias symbol:mtk_mux_gate_ops clk_common
@@ -2367,7 +2348,6 @@ alias symbol:rpmb_mtk_dev_get rpmb
 alias symbol:get_ostdbl_smmu_factor mtk_mm_monitor_controller
 alias symbol:register_tcp_dev_notifier tcpc_class
 alias symbol:cmdq_pkt_get_pa_by_offset mtk_cmdq_drv_ext
-alias symbol:mtk_smmu_tbu_data_get mtk_iommu_util
 alias symbol:tc_is_support_battery_manager tc_misc_intf
 alias symbol:drm_hdmi_infoframe_set_hdr_metadata drm_display_helper
 alias symbol:mtk_sync_te_level_decision_fp mediatek_drm_v1
