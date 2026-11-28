@@ -107,6 +107,8 @@ setup_X6871() {
 			"$root/device/infinix/Infinix-X6871/patches/0008-Sync-usb_otg-symlink-for-mounted-USB-OTG.patch" || return 1
 		apply_X6871_patch "$root/bootable/recovery" \
 			"$root/device/infinix/Infinix-X6871/patches/0009-Resolve-OF_CURRENT_BRANCH-on-detached-HEAD.patch" || return 1
+		apply_X6871_patch "$root/bootable/recovery" \
+			"$root/device/infinix/Infinix-X6871/patches/0010-Fix-ADB-sideload-exit-USB-restore-deadlock.patch" || return 1
 	fi
 
 	apply_X6871_patch "$root/build/make" \

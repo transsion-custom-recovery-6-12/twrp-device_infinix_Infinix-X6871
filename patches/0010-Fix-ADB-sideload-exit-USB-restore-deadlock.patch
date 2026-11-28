@@ -1,0 +1,105 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rama Bondan Prakoso <ramanarubp@gmail.com>
+Date: Sat, 28 Nov 2026 03:00:00 +0000
+Subject: [PATCH] bootable/recovery: fix ADB sideload exit USB restore deadlock
+
+When MTP is enabled (OrangeFox default), Toggle_MTP(false) stops the
+MTP daemon and sets sys.usb.config=adb asynchronously without waiting
+for sys.usb.state to transition. twrp_sideload() then captures
+sys.usb.state="mtp,adb" and, after sideload finishes, calls
+SetUsbConfig("mtp,adb") which blocks indefinitely in WaitForProperty()
+because init.recovery.usb.rc requires sys.usb.ffs.mtp.ready=1 while
+Toggle_MTP(true) cannot run until twrp_sideload() returns.
+
+Fix this by:
+- bounding SetUsbConfig() WaitForProperty() with a 5s timeout,
+- stripping MTP from the saved usb_state inside twrp_sideload() so
+  Toggle_MTP() restores mtp,adb after twrp_sideload() returns,
+- clearing USB config to none unconditionally and waiting for adbd to
+  stop before forking minadbd, plus cleaning up child PID on failure,
+- saving mtppid before zeroing in Disable_MTP() so waitpid() reaps the
+  MTP daemon instead of calling waitpid(0, ...).
+---
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index b6d2a86..1111111 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -3184,9 +3184,10 @@ bool TWPartitionManager::Disable_MTP(void) {
+ #ifdef TW_HAS_MTP
+ 	if (mtppid) {
+ 		LOGINFO("Disabling MTP\n");
+ 		int status;
+-		kill(mtppid, SIGKILL);
++		pid_t old_mtppid = mtppid;
+ 		mtppid = 0;
++		kill(old_mtppid, SIGKILL);
+ 		// We don't care about the exit value, but this prevents a zombie process
+-		waitpid(mtppid, &status, 0);
++		waitpid(old_mtppid, &status, 0);
+ 		close(mtp_write_fd);
+ 		mtp_write_fd = -1;
+ 	}
+diff --git a/twrpinstall/adb_install.cpp b/twrpinstall/adb_install.cpp
+index 0000000..1111111 100644
+--- a/twrpinstall/adb_install.cpp
++++ b/twrpinstall/adb_install.cpp
+@@ -31,6 +31,7 @@
+ #include <unistd.h>
+ 
+ #include <atomic>
++#include <chrono>
+ #include <functional>
+ #include <map>
+ #include <utility>
+@@ -66,7 +67,7 @@ pid_t GetMiniAdbdPid() {
+ 
+ static bool SetUsbConfig(const std::string& state) {
+   android::base::SetProperty("sys.usb.config", state);
+-  return android::base::WaitForProperty("sys.usb.state", state);
++  return android::base::WaitForProperty("sys.usb.state", state, std::chrono::seconds(5));
+ }
+ 
+ // Parses the minadbd command in |message|; returns MinadbdCommand::kError upon errors.
+@@ -317,6 +318,10 @@ static void CreateMinadbdServiceAndExecuteCommands(
+   // the usb state to be updated, which depends on sys.usb.ffs.ready=1 set in the adb daemon.
+   if (!SetUsbConfig("sideload")) {
+     LOG(ERROR) << "Failed to set usb config to sideload";
++    kill(child, SIGKILL);
++    waitpid(child, nullptr, 0);
++    child = 0;
++    signal(SIGPIPE, SIG_DFL);
+     return;
+   }
+ 
+@@ -328,6 +333,7 @@ static void CreateMinadbdServiceAndExecuteCommands(
+ 
+   int status;
+   waitpid(child, &status, 0);
++  child = 0;
+   if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+     if (WEXITSTATUS(status) == MinadbdErrorCode::kMinadbdAdbVersionError) {
+       LOG(ERROR) << "\nYou need adb 1.0.32 or newer to sideload\nto this device.\n";
+@@ -342,11 +348,21 @@ static void CreateMinadbdServiceAndExecuteCommands(
+   int twrp_sideload(const char* install_file, Device::BuiltinAction* reboot_action) {
+ 
+   // Save the usb state to restore after the sideload operation.
++  // Toggle_MTP() manages MTP teardown/restore around twrp_sideload(); never
++  // restore directly into an MTP state while the MTP daemon is stopped, or
++  // init will wait forever for sys.usb.ffs.mtp.ready=1.
+   std::string usb_state = android::base::GetProperty("sys.usb.state", "none");
+-  // Clean up state and stop adbd.
+-  if (usb_state != "none" && !SetUsbConfig("none")) {
++  if (usb_state.find("mtp") != std::string::npos) {
++    usb_state = (usb_state.find("adb") != std::string::npos) ? "adb" : "none";
++  }
++  // Clean up state and stop adbd unconditionally (Disable_MTP() may have just
++  // started adbd asynchronously).
++  if (!SetUsbConfig("none")) {
+     LOG(ERROR) << "Failed to clear USB config";
+     return INSTALL_ERROR;
+   }
++  if (android::base::GetProperty("init.svc.adbd", "") == "running") {
++    android::base::WaitForProperty("init.svc.adbd", "stopped", std::chrono::seconds(2));
++  }
+ 
+   int install_result = INSTALL_ERROR;
